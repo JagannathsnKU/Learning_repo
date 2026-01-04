@@ -20,12 +20,13 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [interimTranscript, setInterimTranscript] = useState('')
   const [recordingTime, setRecordingTime] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [manualInput, setManualInput] = useState('')
   const recognitionRef = useRef<any>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const recognitionStartedRef = useRef(false)
 
   useEffect(() => {
-    // Initialize Web Speech API
+    // Initialize Web Speech API - only run once
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
 
     if (!SpeechRecognition) {
@@ -34,16 +35,18 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
 
     const recognition = new SpeechRecognition()
-    recognition.continuous = false
+    recognition.continuous = true
     recognition.interimResults = true
     recognition.language = 'en-US'
 
     recognition.onstart = () => {
+      console.log('[VoiceRecorder] Recognition started')
       recognitionStartedRef.current = true
       setError(null)
     }
 
     recognition.onresult = (event: any) => {
+      console.log('[VoiceRecorder] Result event received', { resultIndex: event.resultIndex, resultsLength: event.results.length })
       let interim = ''
       let final = ''
 
@@ -62,6 +65,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
 
     recognition.onerror = (event: any) => {
+      console.error('[VoiceRecorder] Error event:', event.error)
       const errorMessages: Record<string, string> = {
         'no-speech': 'No speech detected. Please try again.',
         'audio-capture': 'No microphone found. Please check your device.',
@@ -75,13 +79,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
 
     recognition.onend = () => {
-      if (recognitionStartedRef.current) {
-        setIsRecording(false)
-        recognitionStartedRef.current = false
-        if (transcript.trim() || interimTranscript.trim()) {
-          onTranscriptionComplete((transcript + interimTranscript).trim())
-        }
-      }
+      console.log('[VoiceRecorder] Recognition ended')
+      setIsRecording(false)
+      recognitionStartedRef.current = false
     }
 
     recognitionRef.current = recognition
@@ -92,7 +92,18 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         recognitionRef.current.abort()
       }
     }
-  }, [onTranscriptionComplete, transcript, interimTranscript])
+  }, [])
+
+  // Handle transcription completion when recording stops
+  useEffect(() => {
+    if (!isRecording && (transcript.trim() || interimTranscript.trim())) {
+      const finalTranscript = (transcript + interimTranscript).trim()
+      if (finalTranscript && recognitionStartedRef.current === false) {
+        // Only call once when recording has stopped
+        onTranscriptionComplete(finalTranscript)
+      }
+    }
+  }, [isRecording, transcript, interimTranscript, onTranscriptionComplete])
 
   const handleStartRecording = async () => {
     try {
@@ -102,6 +113,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       setError(null)
 
       if (recognitionRef.current) {
+        console.log('[VoiceRecorder] Starting recognition...')
         recognitionRef.current.start()
         setIsRecording(true)
 
@@ -111,15 +123,22 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         }, 1000)
       }
     } catch (err) {
-      setError('Failed to start recording')
-      console.error(err)
+      console.error('[VoiceRecorder] Error starting recording:', err)
+      setError('Failed to start recording. Please try again.')
+      setIsRecording(false)
     }
   }
 
   const handleStopRecording = () => {
+    console.log('[VoiceRecorder] Stopping recognition...')
     if (timerRef.current) clearInterval(timerRef.current)
     if (recognitionRef.current) {
-      recognitionRef.current.stop()
+      try {
+        recognitionRef.current.stop()
+      } catch (err) {
+        console.error('[VoiceRecorder] Error stopping recognition:', err)
+        recognitionRef.current.abort()
+      }
     }
     setIsRecording(false)
   }
@@ -127,11 +146,14 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const handleClear = () => {
     setTranscript('')
     setInterimTranscript('')
+    setManualInput('')
     setRecordingTime(0)
     setError(null)
   }
 
-  const fullTranscript = (transcript + interimTranscript).trim()
+  // Use manual input if available, otherwise use voice transcript
+  const displayTranscript = manualInput || (transcript + interimTranscript).trim()
+  const fullTranscript = displayTranscript.trim()
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -227,8 +249,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               Or paste/type directly
             </label>
             <GlassInput
-              value={fullTranscript}
-              onChange={setTranscript}
+              value={manualInput}
+              onChange={setManualInput}
               placeholder="Enter your dream description here..."
               className="text-sm"
             />

@@ -9,7 +9,8 @@ export interface SpeechToTextConfig {
   interimResults?: boolean
 }
 
-const SpeechRecognition = window.webkitSpeechRecognition || (window as any).SpeechRecognition
+const SpeechRecognition =
+  (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
 
 export class SpeechToTextService {
   private recognition: any

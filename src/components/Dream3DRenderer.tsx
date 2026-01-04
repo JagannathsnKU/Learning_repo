@@ -21,162 +21,201 @@ export const Dream3DRenderer: React.FC<Dream3DRendererProps> = ({ scene, onExplo
   const animationIdRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!containerRef.current) return
-
-    // Scene setup
-    const threeScene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      containerRef.current.clientWidth / containerRef.current.clientHeight,
-      0.1,
-      1000
-    )
-    camera.position.set(0, 5, 15)
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
-    renderer.setClearColor(0x0a0a0a, 0.9)
-    renderer.shadowMap.enabled = true
-    containerRef.current.appendChild(renderer.domElement)
-
-    sceneRef.current = threeScene
-    cameraRef.current = camera
-    rendererRef.current = renderer
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(scene.lighting.primaryColor, scene.lighting.ambientIntensity)
-    threeScene.add(ambientLight)
-
-    const directionalLight = new THREE.DirectionalLight(scene.lighting.secondaryColor, 0.8)
-    directionalLight.position.set(10, 10, 5)
-    directionalLight.castShadow = true
-    threeScene.add(directionalLight)
-
-    const pointLight = new THREE.PointLight(scene.lighting.primaryColor, 0.6, 50)
-    pointLight.position.set(0, 10, 0)
-    threeScene.add(pointLight)
-
-    // Fog
-    if (scene.fog.enabled) {
-      threeScene.fog = new THREE.Fog(
-        scene.fog.color,
-        scene.fog.far,
-        scene.fog.near
-      )
+    if (!containerRef.current) {
+      console.error('[Dream3DRenderer] Container ref not found')
+      return
     }
 
-    // Create dream elements
-    scene.elements.forEach((element, index) => {
-      const geometry = createGeometryForElement(element, index)
-      const material = new THREE.MeshPhongMaterial({
-        color: element.color,
-        emissive: new THREE.Color(element.color).multiplyScalar(0.3),
-        wireframe: Math.random() > 0.7, // Some surreal wireframe elements
-      })
-
-      const mesh = new THREE.Mesh(geometry, material)
-      mesh.position.set(element.position.x, element.position.y, element.position.z)
-      mesh.scale.set(element.scale, element.scale, element.scale)
-      mesh.castShadow = true
-      mesh.receiveShadow = true
-
-      // Store original position for floating animation
-      (mesh as any).originalPosition = { ...element.position }
-      (mesh as any).floatSpeed = 0.5 + Math.random() * 0.5
-
-      threeScene.add(mesh)
-      elementsRef.current.push(mesh)
-    })
-
-    // Background stars/particles
-    const starGeometry = new THREE.BufferGeometry()
-    const starCount = 200
-    const positions = new Float32Array(starCount * 3)
-
-    for (let i = 0; i < starCount * 3; i += 3) {
-      positions[i] = (Math.random() - 0.5) * 100
-      positions[i + 1] = (Math.random() - 0.5) * 100
-      positions[i + 2] = (Math.random() - 0.5) * 100
-    }
-
-    starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    const starMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.2,
-      sizeAttenuation: true,
-    })
-    const stars = new THREE.Points(starGeometry, starMaterial)
-    threeScene.add(stars)
-
-    // Mouse controls for camera
-    let targetRotation = { x: 0, y: 0 }
-    const onMouseMove = (event: MouseEvent) => {
-      const x = (event.clientX / window.innerWidth) * 2 - 1
-      const y = -(event.clientY / window.innerHeight) * 2 + 1
-
-      targetRotation.x = y * 0.3
-      targetRotation.y = x * 0.3
-    }
-
-    window.addEventListener('mousemove', onMouseMove)
-
-    // Animation loop
-    const animate = () => {
-      animationIdRef.current = requestAnimationFrame(animate)
-
-      // Smooth camera rotation
-      camera.rotation.x += (targetRotation.x - camera.rotation.x) * 0.05
-      camera.rotation.y += (targetRotation.y - camera.rotation.y) * 0.05
-
-      // Animate elements with floating effect
-      elementsRef.current.forEach((mesh) => {
-        const originalPos = (mesh as any).originalPosition
-        const speed = (mesh as any).floatSpeed
-        const time = Date.now() * 0.001
-
-        mesh.position.y = originalPos.y + Math.sin(time * speed) * 2
-        mesh.rotation.x += 0.002
-        mesh.rotation.y += 0.003
-        mesh.rotation.z += 0.001
-      })
-
-      // Animate stars
-      stars.rotation.z += 0.0001
-
-      renderer.render(threeScene, camera)
-    }
-
-    animate()
-
-    // Handle resize
-    const handleResize = () => {
-      if (!containerRef.current) return
-
+    try {
       const width = containerRef.current.clientWidth
       const height = containerRef.current.clientHeight
 
-      camera.aspect = width / height
-      camera.updateProjectionMatrix()
+      console.log('[Dream3DRenderer] Container dimensions:', { width, height })
+
+      if (width === 0 || height === 0) {
+        console.error('[Dream3DRenderer] Container has zero dimensions')
+        return
+      }
+
+      // Scene setup
+      const threeScene = new THREE.Scene()
+      const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000)
+      camera.position.set(0, 5, 15)
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
       renderer.setSize(width, height)
-    }
+      renderer.setClearColor(0x0a0a0a, 0.9)
+      renderer.shadowMap.enabled = true
+      
+      console.log('[Dream3DRenderer] Renderer created successfully')
+      containerRef.current.appendChild(renderer.domElement)
 
-    window.addEventListener('resize', handleResize)
+      sceneRef.current = threeScene
+      cameraRef.current = camera
+      rendererRef.current = renderer
 
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('resize', handleResize)
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(scene.lighting.primaryColor, scene.lighting.ambientIntensity)
+      threeScene.add(ambientLight)
 
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current)
+      const directionalLight = new THREE.DirectionalLight(scene.lighting.secondaryColor, 0.8)
+      directionalLight.position.set(10, 10, 5)
+      directionalLight.castShadow = true
+      threeScene.add(directionalLight)
+
+      const pointLight = new THREE.PointLight(scene.lighting.primaryColor, 0.6, 50)
+      pointLight.position.set(0, 10, 0)
+      threeScene.add(pointLight)
+
+      // Fog
+      if (scene.fog.enabled) {
+        threeScene.fog = new THREE.Fog(
+          scene.fog.color,
+          scene.fog.far,
+          scene.fog.near
+        )
       }
 
-      if (containerRef.current && renderer.domElement.parentElement === containerRef.current) {
-        containerRef.current.removeChild(renderer.domElement)
+      // Create dream elements
+      scene.elements.forEach((element, index) => {
+        const geometry = createGeometryForElement(element, index)
+        const material = new THREE.MeshPhongMaterial({
+          color: element.color,
+          emissive: new THREE.Color(element.color).multiplyScalar(0.3),
+          wireframe: Math.random() > 0.7, // Some surreal wireframe elements
+        })
+
+        const mesh = new THREE.Mesh(geometry, material)
+        mesh.position.set(element.position.x, element.position.y, element.position.z)
+        mesh.scale.set(element.scale, element.scale, element.scale)
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+
+        // Store original position for floating animation
+        ;(mesh as any).originalPosition = { ...element.position }
+        ;(mesh as any).floatSpeed = 0.5 + Math.random() * 0.5
+
+        threeScene.add(mesh)
+        elementsRef.current.push(mesh)
+      })
+
+      // Background stars/particles
+      const starGeometry = new THREE.BufferGeometry()
+      const starCount = 200
+      const positions = new Float32Array(starCount * 3)
+
+      for (let i = 0; i < starCount * 3; i += 3) {
+        positions[i] = (Math.random() - 0.5) * 100
+        positions[i + 1] = (Math.random() - 0.5) * 100
+        positions[i + 2] = (Math.random() - 0.5) * 100
       }
 
-      renderer.dispose()
-      geometry?.dispose()
-      starGeometry.dispose()
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      const starMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.2,
+        sizeAttenuation: true,
+      })
+      const stars = new THREE.Points(starGeometry, starMaterial)
+      threeScene.add(stars)
+
+      // Mouse controls for camera
+      let targetRotation = { x: 0, y: 0 }
+      const onMouseMove = (event: MouseEvent) => {
+        const x = (event.clientX / window.innerWidth) * 2 - 1
+        const y = -(event.clientY / window.innerHeight) * 2 + 1
+
+        targetRotation.x = y * 0.3
+        targetRotation.y = x * 0.3
+      }
+
+      window.addEventListener('mousemove', onMouseMove)
+
+      // Animation loop
+      const animate = () => {
+        animationIdRef.current = requestAnimationFrame(animate)
+
+        // Smooth camera rotation
+        camera.rotation.x += (targetRotation.x - camera.rotation.x) * 0.05
+        camera.rotation.y += (targetRotation.y - camera.rotation.y) * 0.05
+
+        // Animate elements with floating effect
+        elementsRef.current.forEach((mesh) => {
+          const originalPos = (mesh as any).originalPosition
+          const speed = (mesh as any).floatSpeed
+          const time = Date.now() * 0.001
+
+          mesh.position.y = originalPos.y + Math.sin(time * speed) * 2
+          mesh.rotation.x += 0.002
+          mesh.rotation.y += 0.003
+          mesh.rotation.z += 0.001
+        })
+
+        // Animate stars
+        stars.rotation.z += 0.0001
+
+        renderer.render(threeScene, camera)
+      }
+
+      animate()
+
+      // Handle resize
+      const handleResize = () => {
+        if (!containerRef.current) return
+
+        const width = containerRef.current.clientWidth
+        const height = containerRef.current.clientHeight
+
+        camera.aspect = width / height
+        camera.updateProjectionMatrix()
+        renderer.setSize(width, height)
+      }
+
+      window.addEventListener('resize', handleResize)
+
+      return () => {
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('resize', handleResize)
+
+        if (animationIdRef.current) {
+          cancelAnimationFrame(animationIdRef.current)
+        }
+
+        // Dispose of element geometries and materials
+        elementsRef.current.forEach((mesh) => {
+          const geometry = mesh.geometry
+          const material = mesh.material
+          if (geometry) geometry.dispose()
+          if (material) {
+            if (Array.isArray(material)) {
+              material.forEach((m) => m.dispose())
+            } else {
+              material.dispose()
+            }
+          }
+        })
+
+        if (containerRef.current && renderer.domElement.parentElement === containerRef.current) {
+          containerRef.current.removeChild(renderer.domElement)
+        }
+
+        starGeometry.dispose()
+        renderer.dispose()
+      }
+    } catch (err) {
+      console.error('[Dream3DRenderer] Error during setup:', err)
+      if (containerRef.current) {
+        containerRef.current.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: white; font-family: monospace;">
+            <div style="text-align: center;">
+              <h3>Dream Rendering Error</h3>
+              <p>Failed to initialize 3D renderer</p>
+              <p style="font-size: 12px; color: #888;">${err instanceof Error ? err.message : 'Unknown error'}</p>
+            </div>
+          </div>
+        `
+      }
+      return () => {}
     }
   }, [scene])
 
@@ -218,7 +257,7 @@ function createGeometryForElement(element: DreamElement, index: number): THREE.B
 
   if (type.includes('creature')) {
     if (seed === 0) return new THREE.ConeGeometry(1, 3, 8)
-    if (seed === 1) return new THREE.TetrahexahedronGeometry(1)
+    if (seed === 1) return new THREE.BoxGeometry(1, 1, 1)
     return new THREE.IcosahedronGeometry(1.2)
   }
 
@@ -232,6 +271,3 @@ function createGeometryForElement(element: DreamElement, index: number): THREE.B
   // Abstract elements
   return new THREE.IcosahedronGeometry(1 + Math.random() * 0.5)
 }
-
-// Type guard - geometry might not be defined initially
-let geometry: THREE.BufferGeometry | undefined

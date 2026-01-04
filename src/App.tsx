@@ -1,9 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useAppStore } from './store/appStore'
-import { interpretDream, generateShareToken, exportDreamAsFile } from './services/dreamInterpreter'
+import { interpretDreamWithAI } from './services/aiDreamInterpreter'
 import { VoiceRecorder } from './components/VoiceRecorder'
-import { Dream3DRenderer } from './components/Dream3DRenderer'
-import { Dream2DRenderer } from './components/Dream2DRenderer'
+import { Dream2DIllustration } from './components/Dream2DIllustration'
+import { DreamVideoRenderer } from './components/DreamVideoRenderer'
+import { Dream3DExplorer } from './components/Dream3DExplorer'
 import { GlassPanel, GlassButton, GlassCard, GlassBadge, GlassDivider, LoadingSpinner } from './components/GlassUI'
 
 /**
@@ -15,18 +16,15 @@ type AppPhase = 'idle' | 'recording' | 'interpreting' | 'viewing'
 
 export const App: React.FC = () => {
   const [phase, setPhase] = useState<AppPhase>('idle')
-  const [shareToken, setShareToken] = useState<string | null>(null)
 
   const {
     currentDreamMap,
     currentSceneIndex,
     renderMode,
-    recorderState,
     interpreterState,
     setCurrentDreamMap,
     setRenderMode,
     setInterpreterState,
-    setIsExploring,
     resetApp,
   } = useAppStore()
 
@@ -39,7 +37,7 @@ export const App: React.FC = () => {
       setInterpreterState({ isInterpreting: true, error: null })
 
       try {
-        const dreamMap = await interpretDream(transcript)
+        const dreamMap = await interpretDreamWithAI(transcript)
         setCurrentDreamMap(dreamMap)
         setInterpreterState({
           isInterpreting: false,
@@ -62,32 +60,33 @@ export const App: React.FC = () => {
   // Handle sharing
   const handleShare = async () => {
     if (!currentDreamMap) return
-
-    try {
-      const token = await generateShareToken(currentDreamMap.id)
-      setShareToken(token)
-      const shareUrl = `${window.location.origin}?dream=${token}`
-      
-      // Copy to clipboard
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        alert('Share link copied to clipboard!')
-      })
-    } catch (error) {
-      console.error('Failed to generate share token:', error)
-    }
+    const shareUrl = `${window.location.origin}?dream=${currentDreamMap.id}`
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      alert('Share link copied to clipboard!')
+    })
   }
 
   // Handle export
   const handleExport = () => {
     if (!currentDreamMap) return
-    exportDreamAsFile(currentDreamMap)
+    const json = JSON.stringify(currentDreamMap, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `dream_${currentDreamMap.id}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   // Handle reset
   const handleReset = () => {
     resetApp()
     setPhase('idle')
-    setShareToken(null)
   }
 
   const currentScene = currentDreamMap?.scenes[currentSceneIndex]
@@ -142,7 +141,6 @@ export const App: React.FC = () => {
               onRenderModeChange={setRenderMode}
               onShare={handleShare}
               onExport={handleExport}
-              onExplore={() => setIsExploring(true)}
             />
           )}
         </main>
@@ -278,11 +276,10 @@ const PhaseInterpreting: React.FC = () => {
 interface PhaseViewingProps {
   scene: any
   dreamMap: any
-  renderMode: '2d' | '3d'
-  onRenderModeChange: (mode: '2d' | '3d') => void
+  renderMode: '2d' | 'video' | '3d-exploration'
+  onRenderModeChange: (mode: '2d' | 'video' | '3d-exploration') => void
   onShare: () => void
   onExport: () => void
-  onExplore: () => void
 }
 
 const PhaseViewing: React.FC<PhaseViewingProps> = ({
@@ -292,7 +289,6 @@ const PhaseViewing: React.FC<PhaseViewingProps> = ({
   onRenderModeChange,
   onShare,
   onExport,
-  onExplore,
 }) => {
   return (
     <div className="space-y-6 animate-fade-in">
@@ -302,6 +298,9 @@ const PhaseViewing: React.FC<PhaseViewingProps> = ({
           <div>
             <h2 className="text-2xl font-light mb-2">{dreamMap.title}</h2>
             <p className="text-white/60 text-sm line-clamp-3">{dreamMap.narration}</p>
+            {dreamMap.detailedDescription && (
+              <p className="text-white/40 text-xs mt-2 italic">{dreamMap.detailedDescription}</p>
+            )}
           </div>
 
           <GlassDivider />
@@ -323,18 +322,27 @@ const PhaseViewing: React.FC<PhaseViewingProps> = ({
           {/* Control buttons */}
           <div className="flex flex-wrap gap-3">
             <GlassButton
-              variant={renderMode === '3d' ? 'primary' : 'secondary'}
-              onClick={() => onRenderModeChange('3d')}
-              size="sm"
-            >
-              3D View
-            </GlassButton>
-            <GlassButton
               variant={renderMode === '2d' ? 'primary' : 'secondary'}
               onClick={() => onRenderModeChange('2d')}
               size="sm"
             >
-              2D View
+              🎨 Dream Art
+            </GlassButton>
+
+            <GlassButton
+              variant={renderMode === 'video' ? 'primary' : 'secondary'}
+              onClick={() => onRenderModeChange('video')}
+              size="sm"
+            >
+              🎬 Dream Video
+            </GlassButton>
+
+            <GlassButton
+              variant={renderMode === '3d-exploration' ? 'primary' : 'secondary'}
+              onClick={() => onRenderModeChange('3d-exploration')}
+              size="sm"
+            >
+              🗺️ Explore Dream
             </GlassButton>
 
             <div className="flex-1" />
@@ -351,10 +359,12 @@ const PhaseViewing: React.FC<PhaseViewingProps> = ({
 
       {/* Dream world renderer */}
       <GlassPanel className="p-0 overflow-hidden">
-        {renderMode === '3d' ? (
-          <Dream3DRenderer scene={scene} onExplore={onExplore} />
-        ) : (
-          <Dream2DRenderer scene={scene} />
+        {renderMode === '2d' && <Dream2DIllustration scene={scene} />}
+        {renderMode === 'video' && (
+          <DreamVideoRenderer scene={scene} videoPrompt={dreamMap.videoPrompt || ''} onExplore={() => onRenderModeChange('3d-exploration')} />
+        )}
+        {renderMode === '3d-exploration' && (
+          <Dream3DExplorer scene={scene} onExplore={() => onRenderModeChange('video')} />
         )}
       </GlassPanel>
 

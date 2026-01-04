@@ -4,7 +4,7 @@ import type { AppState, DreamMap, RecorderState, InterpreterState } from '../typ
 interface AppStore extends AppState {
   setCurrentDreamMap: (dreamMap: DreamMap | null) => void
   setCurrentSceneIndex: (index: number) => void
-  setRenderMode: (mode: '2d' | '3d') => void
+  setRenderMode: (mode: '2d' | 'video' | '3d-exploration') => void
   setRecorderState: (state: Partial<RecorderState>) => void
   setInterpreterState: (state: Partial<InterpreterState>) => void
   setIsExploring: (exploring: boolean) => void
@@ -28,7 +28,7 @@ const initialInterpreterState: InterpreterState = {
 export const useAppStore = create<AppStore>((set) => ({
   currentDreamMap: null,
   currentSceneIndex: 0,
-  renderMode: '3d',
+  renderMode: '2d',
   recorderState: initialRecorderState,
   interpreterState: initialInterpreterState,
   shareToken: null,
@@ -47,10 +47,10 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   setIsExploring: (exploring) => set({ isExploring: exploring }),
   setShareToken: (token) => set({ shareToken: token }),
-  resetApp: () => set({
+    resetApp: () => set({
     currentDreamMap: null,
     currentSceneIndex: 0,
-    renderMode: '3d',
+    renderMode: '2d',
     recorderState: initialRecorderState,
     interpreterState: initialInterpreterState,
     shareToken: null,

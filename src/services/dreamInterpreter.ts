@@ -201,7 +201,11 @@ function generateFogSetup(mood: string): FogSetup {
 }
 
 export async function interpretDream(narration: string): Promise<DreamMap> {
-  // Simulate API delay
+  const startTime = Date.now()
+  console.log('[DreamInterpreter] Starting dream interpretation for narration:', narration)
+  
+  // Simulate API delay (in production, this would be an actual LLM API call)
+  // Currently set to 1500ms - you can adjust this value
   await new Promise((resolve) => setTimeout(resolve, 1500))
   
   const scenes = generateMockDreamInterpretation(narration)
@@ -217,6 +221,9 @@ export async function interpretDream(narration: string): Promise<DreamMap> {
   
   // Store in mock database
   MOCK_DREAM_DATABASE[dreamMap.id] = dreamMap
+  
+  const endTime = Date.now()
+  console.log(`[DreamInterpreter] Interpretation complete. Total time: ${endTime - startTime}ms`)
   
   return dreamMap
 }

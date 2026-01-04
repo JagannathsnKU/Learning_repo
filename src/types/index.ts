@@ -12,6 +12,8 @@ export interface DreamElement {
   color: string
   mood: string
   surreal?: boolean
+  aiGenerated?: boolean
+  imageUrl?: string
 }
 
 export interface Vector3D {
@@ -68,6 +70,9 @@ export interface DreamMap {
   generatedAt: number
   isPublic: boolean
   shareToken?: string
+  detailedDescription?: string
+  videoPrompt?: string
+  renderMode?: '2d' | 'video' | '3d-exploration'
 }
 
 export interface RecorderState {
@@ -86,7 +91,7 @@ export interface InterpreterState {
 export interface AppState {
   currentDreamMap: DreamMap | null
   currentSceneIndex: number
-  renderMode: '2d' | '3d'
+  renderMode: '2d' | 'video' | '3d-exploration'
   recorderState: RecorderState
   interpreterState: InterpreterState
   shareToken: string | null
